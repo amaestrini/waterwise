@@ -18,6 +18,8 @@ library(cordexr)
 library(dplyr)
 library(ggplot2)
 library(rbokeh)
+library(zoo)
+library(quantreg)
 ```
 
 
@@ -366,16 +368,28 @@ rzoo_code <- function(
   }
 
   #### for bokeh module
-  outf$ttt <- as.data.frame(outf$zoov)
-  outf$ttt$month <- month(as.Date(index(outf$zoov)))
-  outf$ttt$year <- year(as.Date(index(outf$zoov)))
-  outf$ttt <- melt(outf$ttt,id=c("year","month","observation")) %>% filter(!is.na(observation))
-  names(outf$ttt)[names(outf$ttt)=="variable"] <- "model"
+  outf$ttt0 <- as.data.frame(outf$zoov)
+  outf$ttt0$month <- month(as.Date(index(outf$zoov)))
+  outf$ttt0$year <- year(as.Date(index(outf$zoov)))
+  outf$ttt0$time <- as.Date(index(outf$zoov))
+  outf$ttt0 <- melt(outf$ttt0,id=rev(c("year","month","time","observation"))) 
+  names(outf$ttt0)[names(outf$ttt0)=="variable"] <- "model"
+  outf$ttt <- outf$ttt0 %>% filter(!is.na(observation))
   
+  
+  #### MODEL
+  ##outf$dowscaling_model <- glm(observation ~ value+model+factor(month),data=outf$ttt)
+  ##outf$dowscaling_model <- glm(observation ~ value+model,data=outf$ttt)
+  outf$dowscaling_model <- rq(observation ~ value+model,data=outf$ttt)
+  ####
+  outf$ttt0$predicted <- predict(outf$dowscaling_model,newdata=outf$ttt0)
   
   ####
-
-  outf$main2 <- sprintf("%s %s %s",varsel,station0,in_selected_global_model)
+  outf$zoov_modeled <- outf$ttt0 %>% select(model,time,predicted) %>% dcast(time  ~ model,fun.aggregate=mean)
+  time <- outf$zoov_modeled$time
+  outf$zoov_modeled  <- outf$zoov_modeled %>% select(-time) %>% as.zoo()
+  index(outf$zoov_modeled) <- time
+  outf$zoov_modeled$observation <- outf$zoov$observation
 
   return(outf)
 }
@@ -419,7 +433,7 @@ in_selected_global_model=input$gcm,
 varsel=input$varsel
 ) 
 rrev(rr)
-dygraph(rr$zoov,main=rr$main,xlab="Time",ylab=rr$ylab) %>% dyRangeSelector() %>% dyOptions(stepPlot=rr$stepPlot) %>% dySeries("observation", stepPlot = rr$stepPlot,color = "blue") 
+dygraph(rr$zoov,main=rr$main,xlab="Time",ylab=rr$ylab) %>% dyRangeSelector() %>% dyOptions(stepPlot=rr$stepPlot) %>% dySeries("observation", stepPlot = rr$stepPlot,color = "blue") %>% dyLegend(width=100)
 })
 # 
 # ### https://hafen.github.io/rbokeh/articles/rbokeh.html
@@ -450,6 +464,31 @@ isolate(rr <- rrev())
 figure(title=rr$main2,ylab=rr$ylab,data=rr$ttt,width=1000) %>% ly_points(observation,value,color = month, glyph = model,hover = list(observation, value,model,month,year),legend=FALSE)
 })
 ```
+
+DOWNSCALED: 
+
+```{r zoo004,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=TRUE,results="hold"}
+
+rrev <- reactiveVal()
+
+renderDygraph({rr <- rzoo_code(
+  data_in=out50,
+  station0=input$station,
+in_selected_global_model=input$gcm,
+varsel=input$varsel
+) 
+rrev(rr)
+dygraph(rr$zoov_modeled,main=rr$main,xlab="Time",ylab=rr$ylab) %>% dyRangeSelector() %>% dyOptions(stepPlot=rr$stepPlot) %>% dySeries("observation", stepPlot = rr$stepPlot,color = "blue") 
+})
+# 
+# ### https://hafen.github.io/rbokeh/articles/rbokeh.html
+
+
+input0 <- reactiveValues(input=input)
+isolate(input0)
+
+```
+
 
 
 ## References 
