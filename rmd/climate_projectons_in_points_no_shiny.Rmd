@@ -3,7 +3,6 @@ title: "Climate Projections in Point"
 author: "Emanuele Cordano"
 date: "`r Sys.Date()`"
 output: html_document
-runtime: shiny
 editor_options: 
   chunk_output_type: inline
 ---
@@ -409,13 +408,18 @@ rr <<- rzoo_code()
 ```{r zoo002,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hold"}
 
 
-global_models_u=unique(out50$gcm)
+#global_models_u=unique(out50$gcm)
 ##f (shiny) {
-inputPanel(
-  selectInput(inputId = "gcm", label = "Global Climate Model", choices =   global_models_u,selected=formals(rzoo_code)$in_selected_global_model),
-  selectInput(inputId = "station", label = "Station (site)", choices = unique(out50$station),selected=formals(rzoo_code)$station0),
-  selectInput(inputId = "varsel", label = "Variable", choices = c("tasmin","tasmax","temp","diff_temp","pr"),selected=formals(rzoo_code)$varsel)
-  
+#inputPanel(
+#  selectInput(inputId = "gcm", label = "Global Climate Model", choices =   #global_models_u,selected=formals(rzoo_code)$in_selected_global_model),
+#  selectInput(inputId = "station", label = "Station (site)", choices = #unique(out50$station),selected=formals(rzoo_code)$station0),
+#  selectInput(inputId = "varsel", label = "Variable", choices = #c("tasmin","tasmax","temp","diff_temp","pr"),selected=formals(rzoo_code)$varsel)
+ 
+  input <- list()
+  input$gcm <- formals(rzoo_code)$in_selected_global_model)
+  input$station <- formals(rzoo_code)$station0)
+  input$varsel <- c("tasmin","tasmax","temp","diff_temp","pr")[1]
+   
 )
 
 ```
@@ -424,9 +428,10 @@ Lorem Ipsum
 
 ```{r zoo003a,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=TRUE,results="hold"}
 
-rrev <- reactiveVal()
+#rrev <- reactiveVal()
 
-renderDygraph({rr <- rzoo_code(
+##renderDygraph({
+  rr <- rzoo_code(
   data_in=out50,
   station0=input$station,
 in_selected_global_model=input$gcm,
@@ -434,7 +439,7 @@ varsel=input$varsel
 ) 
 rrev(rr)
 dygraph(rr$zoov,main=rr$main,xlab="Time",ylab=rr$ylab) %>% dyRangeSelector() %>% dyOptions(stepPlot=rr$stepPlot) %>% dySeries("observation", stepPlot = rr$stepPlot,color = "blue") %>% dyLegend(width=100)
-})
+##})
 # 
 # ### https://hafen.github.io/rbokeh/articles/rbokeh.html
 
@@ -449,7 +454,7 @@ Lorem Ipsum:
 
 ```{r zoo003,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=TRUE,results="hold",fig.width=100}
 
-renderRbokeh({
+##renderRbokeh({
 
  rr <- rzoo_code(
   data_in=out50,
@@ -458,34 +463,35 @@ in_selected_global_model=input$gcm,
 varsel=input$varsel
 )  
   
-message("data")
-isolate(rr <- rrev())
+#message("data")
+#isolate(rr <- rrev())
 #head(rr$ttt)
 figure(title=rr$main2,ylab=rr$ylab,data=rr$ttt,width=1000) %>% ly_points(observation,value,color = month, glyph = model,hover = list(observation, value,model,month,year),legend=FALSE)
-})
+##})
 ```
 
 DOWNSCALED: 
 
 ```{r zoo004,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=TRUE,results="hold"}
 
-rrev <- reactiveVal()
+##rrev <- reactiveVal()
 
-renderDygraph({rr <- rzoo_code(
+#renderDygraph({
+  rr <- rzoo_code(
   data_in=out50,
   station0=input$station,
 in_selected_global_model=input$gcm,
 varsel=input$varsel
 ) 
-rrev(rr)
+##rrev(rr)
 dygraph(rr$zoov_modeled,main=rr$main,xlab="Time",ylab=rr$ylab) %>% dyRangeSelector() %>% dyOptions(stepPlot=rr$stepPlot) %>% dySeries("observation", stepPlot = rr$stepPlot,color = "blue") 
-})
+##})
 # 
 # ### https://hafen.github.io/rbokeh/articles/rbokeh.html
 
 
-input0 <- reactiveValues(input=input)
-isolate(input0)
+##input0 <- reactiveValues(input=input)
+##isolate(input0)
 
 ```
 
