@@ -1,0 +1,614 @@
+---
+title: "Climate Projections in Sites: Tres and Rovere della luna (Trentino, Italy)"
+author: "Emanuele Cordano"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+bibliography: bibliography.bib  
+---
+
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: inline
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(RMAWGEN)
+library(magrittr)
+library(sf)
+library(cordexr)
+library(dplyr)
+library(ggplot2)
+library(rbokeh)
+library(zoo)
+library(quantreg)
+library(hydroGOF)
+
+is_html =TRUE
+is_shiny = FALSE & (is_html)
+is_pdf = !(is_html)
+```
+
+
+***
+## Trentino Dataset (RMAWGEN)
+
+Trentino daily climate dataset by **RMAWGEN** R package (https://CRAN.R-project.org/package=RMAWGEN @Cordano2016) contains all information about meteorological stations and instrumental timeseries in 59 sites located in Trentino (Italy) and its neighborood. In particular, it contains daily precipitantion, maximimum and minimum temperature.  Original data are provided by Provincia Autonoma di Trento (https://www.meteotrentino.it/), Fondazione Edmund Mach (https://www.fmach.it), Provincia Autonama di Bolzano/Autome Provinz Bozen (http://www.provincia.bz.it/meteo), ARPA Lombardia (https://www.arpalombardia.it/), ARPA Veneto (https://www.arpa.veneto.it/previsioni/it/html/index.php). Two more stations (WWRLUN and WWTRES) provided by the present project are added.
+
+```{r trentino,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
+
+data(trentino)
+stations <- cbind(as.data.frame(STATION_LATLON),STATION_NAMES) %>% st_as_sf(coords=c(1,2),crs=4326)
+stations$source <- "RMAWGEN"
+##mapview::mapview(stations)
+#rlatlon <- cordex_grid_vertices(ncs[1],crop_sf=stations)
+
+##
+trentino_pr <- PRECIPITATION %>% melt(id=c("month","day","year"))
+names(trentino_pr)[names(trentino_pr)=="variable"] <- "STATION_NAMES"
+trentino_pr$variable <- "pr" ## EURO-CORDEX name
+##
+##
+trentino_tasmin <- TEMPERATURE_MIN %>% melt(id=c("month","day","year"))
+names(trentino_tasmin)[names(trentino_tasmin)=="variable"] <- "STATION_NAMES"
+trentino_tasmin$variable <- "tasmin" ## EURO-CORDEX name
+##
+trentino_tasmax <- TEMPERATURE_MAX %>% melt(id=c("month","day","year"))
+names(trentino_tasmax)[names(trentino_tasmax)=="variable"] <- "STATION_NAMES"
+trentino_tasmax$variable <- "tasmax" ## EURO-CORDEX name
+##
+trentino <- rbind(trentino_pr,trentino_tasmin,trentino_tasmax)
+trentino_monthly <- trentino %>% group_by(month,year,STATION_NAMES,variable) %>% summarise(value=mean(value,na.rm=TRUE)) %>% ungroup()
+
+
+```
+```{r WaterWise,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hold"}
+
+library(readxl)
+
+
+## global path:
+dati_meteo_2022_1_file  <- "/home/ecor/activity/2022/fbk/local/waterwise/data/dati_meteo_2022_1.xlsx"
+## local path: 
+##dati_meteo_2022_1_file  <- ".../data/dati_meteo_2022_1.xlsx"
+sheets <- c("Segno (per Tres)", "Rovere Luna")
+names(sheets) <- c("WWTRES","WWRLUN")
+###
+stations_waterwise <- stations[1:length(sheets),]
+stations_waterwise$source <- "WaterWise"
+stations_waterwise$STATION_NAMES <- names(sheets)
+####
+#stations <- rbind(stations,stations_waterwise)
+# Rovere 2 siti:
+# 46.252253, 11.177731
+# 46.252713, 11.172209
+# Tres 1 sito:
+# 46.312991, 11.088398
+## https://www.meteotrentino.it/#!/content?menuItemDesktop=143 Tres T0088 46.3207	11.1014
+# Rovere
+# 46.252253, 11.17773
+# 
+# Tres:
+# 46.312991, 11.088398
+# 
+# mi confermi anche che ti e' arrivato invito per Github?
+
+# Grazie e ciao
+# Andrea
+stations_waterwise$geometry[1] <- c(11.088398,46.312991) %>% st_point()
+stations_waterwise$geometry[2] <- c(11.177731,46.252253) %>% st_point()
+# ###
+waterwise <- list()
+for (it in names(sheets)) {
+  waterwise[[it]] <- read_excel(dati_meteo_2022_1_file,sheet = sheets[it])
+  names(waterwise[[it]]) <- c("Date","day","month","year","tas","tasmax","tasmin","pr")
+  waterwise[[it]]$STATION_NAMES <- it
+}
+waterwise <-  do.call(waterwise,what="rbind") %>% dplyr::select(-Date) %>% melt(id=c("day","month","year","STATION_NAMES"))
+####
+####
+####
+####
+trentino <- rbind(trentino,waterwise[,names(trentino)])
+trentino_monthly <- trentino %>% group_by(month,year,STATION_NAMES,variable) %>% summarise(value=mean(value,na.rm=TRUE)) %>% ungroup()
+
+stations <- rbind(stations,stations_waterwise)
+
+stations$color <- stations$source
+stations$color[] <- "black"
+stations$color[stations$source=="WaterWise"] <- "blue"
+
+# if (is_html) {
+#   mapview::mapview(stations,zcol="source",col.regions=c("black","blue"))
+# }else if (is_pdf) {
+#   
+#   plot(stations) ## PLOT ##https://climate-modelling.canada.ca/climatemodeldata/cgcm4/CanESM2/index.shtml
+# }
+```
+
+
+## Available Projections (from CORDEX)
+
+The **trentino + 2 more stations** dataset station locations are inserted within the grid provided by CORDEX outcome files (https://cds.climate.copernicus.eu/cdsapp#!/dataset/projections-cordex-domains-single-levels?tab=overview). 
+
+```{r grid_example_code,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+
+library(cordexr) ## package installable from https://github.com/ecor/cordexr
+
+
+ncs <- '/home/ecor/local/data/climate/cordex/europe/monthly_2051_2100_unzipped/'  %>% list.files(full.name=TRUE,pattern=".nc")
+nc <- ncs[1]
+rlatlon <- cordex_grid_vertices(nc,crop_sf=stations)
+
+
+## LOOK AT ST_WITHIN
+station_cell <- st_within(stations,rlatlon,sparse=TRUE) %>% sapply(function(x){x[1]}) ## see buffer
+stations$nccell <- station_cell
+
+out2 <- as.data.frame(rlatlon[station_cell,]) %>% dplyr::select(-geometry) %>% cbind(stations)
+
+
+
+```
+```{r grid_example_plot,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hold"}
+
+if (is_html) {
+  rlatlon$source <- "CORDEX Grid"
+  mapview::mapview(list(stations,rlatlon),zcol="source",alpha.regions=c(1,0.1)) 
+  
+} else if (is_pdf) {
+   rlatlon$source <- "CORDEX Grid"
+  mm <- mapview::mapview(list(stations,rlatlon),zcol="source",alpha.regions=c(1,0.1))   
+  mapview::mapshot(mm,file="images/stations.png")
+  knitr::include_graphics(path="images/stations.png",dpi=200)
+ 
+ 
+}
+
+```
+
+<!-- Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot. -->
+
+
+
+### List of RCM and GCM models
+
+Here is a list of available combinations of Global Climate Models (GCMs) and Regional Climate Models RCMS Provided by EURO-CORDEX project provided by Copenicus Data Storage in collaboration with ECMWF (https://cds.climate.copernicus.eu/cdsapp#!/dataset/projections-cordex-domains-single-levels?tab=doc,https://confluence.ecmwf.int/display/CKB/CORDEX%3A+Regional+climate+projections, 
+https://climate.copernicus.eu/sites/default/files/2021-03/C3SWebinar1_ErikKjellstrom.pdf
+)(e.g. @Coppola2021a, @Vautard2021, @Christensen2020 https://link.springer.com/article/10.1007/s00382-020-05229-y,).
+
+GCMs: 
+
+* "CCCma-CanESM2"   (@Scinocca2016,@Swart2019)(https://climate-modelling.canada.ca/climatemodeldata/cgcm4/CanESM2/index.shtml) 
+* "ICHEC-EC-EARTH"  (@Hazeleger2012)(https://www.ichec.ie/partnerships/state-supported/ec-earth-climate-simulations-irelands-contributions-cmip6 ???)
+* "MIROC-MIROC5"   (@watanabe2010)(https://journals.ametsoc.org/view/journals/clim/23/23/2010jcli3679.1.xml)
+* "MOHC-HadGEM2-ES"    (@gmd47232011)(https://gmd.copernicus.org/articles/4/723/2011/gmd-4-723-2011.pdf)
+* "MPI-M-MPI-ESM-LR" (@giorgietta2013)(https://mpimet.mpg.de/en/science/models/mpi-esm) ??
+
+
+RCMS: 
+
+* CLMcom-CCLM4-8-17
+* GERICS-REMO2015
+* CLMcom-ETH-COSMO-crCLIM-v1-1
+* DMI-HIRHAM5
+* KNMI-RACMO22E
+* SMHI-RCA4
+* UHOH-WRF361H
+* CNRM-ALADIN63
+* ICTP-RegCM4-6
+* MOHC-HadREM3-GA7-05
+* MPI-CSC-REMO2009
+
+Climate predictions with GCMs are subsequently downscaled at about-10 km resolutions by RCMs. 
+
+```{r rcm,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+
+
+sims <- cordex_netcdf_attributes_multi_sources(ncs)
+
+##knitr::kable(sims %>% select(driving_model_id,model_id,experiment_id,variable,source))
+```
+
+
+
+## Monthly Time Series 1951-2005 (historical); 2006-2100 (RCP85)
+
+### Averaged daily maximum and minimum temperature 
+
+
+Extracted monthly predicted time series cover the area of grid cells covering in which the station site is contained. Gridded model values from RCMs are subsequently statistical downscaled and then compared with observations, when available, for the historical period (1951-2005) and the RCP8.5 scenario (https://en.wikipedia.org/wiki/Representative_Concentration_Pathway)(2006-2100). 
+Downscaling from the RCM value to the site-scale value has been performed with an ARIMA model. 
+Model are calibarated for the first 10 years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are avaiable from 2001 to 2022 (March). 
+Downscaled time series with the best fit and tat can be accepted for further analysis are visualized. Scrolling visulalization are only available in the HTML  of this report. 
+
+```{r values,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+cc <- system.time({
+##source("~/local/rpackages/rendena100/cordexr/R/which_ncvar_name.R")
+##source("~/local/rpackages/rendena100/cordexr/R/cordex_grid_cell_values.R")
+##source("~/local/rpackages/rendena100/cordexr/R/codex_grid_vertices.R")
+##source("~/local/rpackages/rendena100/cordexr/R/cordex_grid_cell_value_from_points.R")
+####
+it_station <- c("WWTRES","WWRLUN","T0099","T0083","T0236","SMICH","T0090","T0169")
+## Global path: 
+out44_file <- '/home/ecor/activity/2022/fbk/local/data/climate_historical_rcp_%s.rds' %>% 
+sprintf(paste(it_station,collapse="_"))
+## local (other) path: 
+out44_file <- '/home/ecor/activity/2022/fbk/local/waterwise/data/climate_historical_rcp_%s.rds' %>% 
+sprintf(paste(it_station,collapse="_"))
+out50_file <- '/home/ecor/activity/2022/fbk/local/waterwise/data/climate_historical_rcp_%s_with_observations.rds' %>% 
+sprintf(paste(it_station,collapse="_"))
+force <- !file.exists(out44_file)
+sf_use_s2(FALSE)
+stations0 <- stations %>% filter(STATION_NAMES %in% it_station)
+if (force==TRUE) {
+ ### 
+
+  out44 <- NULL
+
+###
+  models <- paste(sims$driving_model_id,sims$model_id,sep="_") 
+  issued_models <- c("ICHEC-EC-EARTH_CLMcom-ETH-COSMO-crCLIM-v1-1","ICHEC-EC-EARTH_DMI-HIRHAM5","ICHEC-EC-EARTH_KNMI-RACMO22E","ICHEC-EC-EARTH_SMHI-RCA4","MOHC-HadGEM2-ES_CLMcom-ETH-COSMO-crCLIM-v1-1",
+                   "MOHC-HadGEM2-ES_CNRM-ALADIN63","MOHC-HadGEM2-ES_DMI-HIRHAM5","MOHC-HadGEM2-ES_ICTP-RegCM4-6","MOHC-HadGEM2-ES_KNMI-RACMO22E",
+                    "MOHC-HadGEM2-ES_MOHC-HadREM3-GA7-05","MOHC-HadGEM2-ES_SMHI-RCA4","MPI-M-MPI-ESM-LR_CLMcom-ETH-COSMO-crCLIM-v1-1","MPI-M-MPI-ESM-LR_CNRM-ALADIN63","MPI-M-MPI-ESM-LR_DMI-HIRHAM5",
+                   "MPI-M-MPI-ESM-LR_ICTP-RegCM4-6","MPI-M-MPI-ESM-LR_KNMI-RACMO22E","MPI-M-MPI-ESM-LR_SMHI-RCA4","MIROC-MIROC5_UHOH-WRF361H") 
+  issued_models2 <- c("MOHC-HadGEM2-ES_CNRM-ALADIN63","MOHC-HadGEM2-ES_DMI-HIRHAM5","MOHC-HadGEM2-ES_ICTP-RegCM4-6","MOHC-HadGEM2-ES_KNMI-RACMO22E",
+                    "MOHC-HadGEM2-ES_MOHC-HadREM3-GA7-05","MOHC-HadGEM2-ES_SMHI-RCA4","MPI-M-MPI-ESM-LR_CLMcom-ETH-COSMO-crCLIM-v1-1","MPI-M-MPI-ESM-LR_CNRM-ALADIN63","MPI-M-MPI-ESM-LR_DMI-HIRHAM5",
+                   "MPI-M-MPI-ESM-LR_ICTP-RegCM4-6","MPI-M-MPI-ESM-LR_KNMI-RACMO22E","MPI-M-MPI-ESM-LR_SMHI-RCA4","MIROC-MIROC5_UHOH-WRF361H") 
+  issued_models3 <- "MIROC-MIROC5_UHOH-WRF361H"
+## "MIROC-MIROC5_UHOH-WRF361H" contains height dimension for tas,tasmin and tasmax!!!
+
+  for (i in (1:nrow(sims))[!(models %in% issued_models3)])   {
+    nc <- sims$file[i]
+    it <- paste(sims$driving_model_id[i],sims$model_id[i],sep="_") 
+    temp <- cordex_grid_cell_value_from_points(nc,crop_sf=stations0)
+    ####
+    ####
+    temp$variable <- sims$variable[i]
+    names(temp)[names(temp)==sims$variable[i]] <- "value"
+    temp$model <- it
+    temp$experiment <- sims$experiment_id[i]
+    names(temp)[names(temp)=="STATION_NAMES"] <- "station"
+    ####
+    if (sims$variable[i]=="pr") {
+   
+      temp$value[temp$value<0] <- NA
+  ## units from kg m-2 s-1 to mm/day
+      temp$value <-   temp$value/1000*1000*3600*24 ##*as.numeric(nnday)
+      temp$value[temp$value>=1000/30] <- NA
+    } else if (sims$variable[i] %in% c("tasmin","tasmax","tas")) {
+      
+      temp$value <-   temp$value-273.15
+    }
+    ####
+    temp <- temp %>% select(time,value,variable,station,model,experiment) %>% as_tibble()
+    out44 <- temp %>% rbind(out44)
+  }
+  
+  saveRDS(out44,file=out44_file)
+} else {
+  out44 <- readRDS(out44_file)
+}
+
+})
+
+
+
+
+```
+```{r add_trentino,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+out50 <- out44 ## out40 %>% do.call(what="rbind")
+#### TEMPORARY 
+ic <- which(out50$variable %in% c("tasmin","tasmax","tas"))
+###if (length(ic)>0) out50$value[ic] <-   out50$value[ic]-273.15
+out50$gcm <- str_split(out50$model,"_") %>% sapply(function(x){x[1]})
+out50$rcm <- str_split(out50$model,"_") %>% sapply(function(x){x[2]})
+
+
+
+####
+trentino_monthly$model <- "observation"
+trentino_monthly$experiment <- "observation"
+trentino_monthly$rcm <- "observation"
+trentino_monthly$gcm <- "observation"
+
+names(trentino_monthly)[names(trentino_monthly)=="STATION_NAMES"] <- "station"
+trentino_monthly$time <- sprintf("%04d-%02d-01",trentino_monthly$year,trentino_monthly$month) %>% as.Date()
+out50$time <- sprintf("%04d-%02d-01",year(out50$time),month(out50$time)) %>% as.Date()
+####
+trentino_monthly2 <- trentino_monthly[,names(out50)] %>% filter(station %in% unique(out50$station))
+out50 <- out50 %>% rbind(trentino_monthly2)
+
+
+```
+
+
+
+
+```{r zoo004, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
+debug <- FALSE
+library(dygraphs)
+source("~/activity/2022/fbk/local/waterwise/rmd/functions.R")
+
+###
+gcms <- unique(out50$gcm)
+gcms <- gcms[gcms!="observation"]
+###
+write_rds <- TRUE
+rr <- list()
+ for (station0 in  unique(out50$station)[1:2]) {
+  rr[[station0]] <- list()
+  for (in_selected_global_model in gcms) {
+  rr[[station0]][[in_selected_global_model]] <- list() 
+    for (varsel in c("tasmin","tasmax")) { ## 5 is precipitation OMITTED!!
+         rr[[station0]][[in_selected_global_model]][[varsel]] <- rzoo_code(dataset=out50,station0=station0,global_climate_model=in_selected_global_model,varsel=varsel) 
+     #####
+         filename <- "../outcomes/%s_at_%s_model_%s.rds" %>% sprintf(varsel,station0,in_selected_global_model)   
+         if (write_rds) saveRDS(rr[[station0]][[in_selected_global_model]][[varsel]],file=filename)
+         
+      }
+    }
+    
+ }
+
+```
+
+
+```{r scp_downscaled, eval=FALSE, echo=FALSE, fig.width=120, message=FALSE, warning=FALSE, print=TRUE, results="hold",fig.width=100}
+
+####
+pagebreak <- function() {
+  if(knitr::is_latex_output())
+    return("\\pagebreak")
+  else
+    return('<div style="page-break-before: always;" />')
+} ### https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way
+
+
+####
+newline <- function() {
+  if(knitr::is_latex_output())
+    return("\\newline")
+  else
+    return('<div style="page-break-before: always;" \n />')
+} ### https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way
+
+
+
+
+for (i1 in names(rr)) {
+    for (i2 in names(rr[[i1]])) {
+       for (i3 in names(rr[[i1]][[i2]])) {
+          nn4 <- names(rr[[i1]][[i2]][[i3]]$dy)
+          for (i4 in nn4) {
+            print(rr[[i1]][[i2]][[i3]]$scplot[[i4]])
+            ####print(newline())
+           # iglob <- paste(i1,i2,i3,i4,sep="_")
+           # dy[[iglob]] <- rr[[i1]][[i2]][[i3]]$dy[[i4]]
+            #if (!debug)  htmltools::tags$div(dy[[iglob]], style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+          }
+       }
+    }
+ }    
+
+
+
+```
+
+Godness of fit metrics is based on RMSE (Root Mean Square Error, https://en.wikipedia.org/wiki/Root-mean-square_deviation), MAE (https://en.wikipedia.org/wiki/Mean_absolute_error) and KGE (Kling-Gupta efficiency, see "kge" function on *hydroGOF* R package @hydroGOF): 
+
+```{r gof_downscaled, eval=TRUE, echo=FALSE, fig.width=120, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
+
+temp_gof <- NULL
+for (i1 in names(rr)) {
+    for (i2 in names(rr[[i1]])) {
+       for (i3 in names(rr[[i1]][[i2]])) {
+          temp_gof <- rbind(temp_gof,rr[[i1]][[i2]][[i3]]$gof)
+     
+       }
+    }
+} 
+ii <- which(temp_gof$model=="observation")
+uu <- which((duplicated(paste(temp_gof$station[ii],temp_gof$variable[ii],sep="_"))))
+temp_gof <- temp_gof[-ii[uu],]
+knitr::kable(temp_gof,row.names=FALSE)
+#####
+
+
+#####
+```
+
+Considering only the model combinations with RMSE lower or equal than 4 degrees Celsius and KGE greater than 0.8:
+
+```{r gof2_downscaled, eval=TRUE, echo=FALSE, fig.width=120, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
+
+thrs <- 4
+kge_thrs <- 0.80
+##knitr::kable(temp_gof,row.names=FALSE)
+#####
+#ii <- which(temp_gof$RMSE<=thrs)
+#mm <- unique(temp_gof$model[ii])
+
+####
+mm <- temp_gof %>% dplyr::group_by(model) %>% dplyr::summarize(rmse2_m=max(RMSE),rmse2_n=min(RMSE),kge2=min(KGE)) %>% dplyr::ungroup() %>% dplyr::filter(rmse2_m<=thrs,kge2>=kge_thrs) %>% dplyr::select(model) %>% extract2(1)
+temp_gof2 <- temp_gof %>% dplyr::filter(model %in% mm)
+
+
+knitr::kable(temp_gof2,row.names=FALSE)
+#####
+```
+
+
+```{r zoo004_temp, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
+ if (is_html) {
+#### DYGRAPHS 
+dy <- list()
+mm2 <- unique(temp_gof2$model)
+mm2 <- mm2[mm2!="observation"]
+
+ for (i1 in names(rr)) {
+    for (i2 in names(rr[[i1]])) {
+       for (i3 in names(rr[[i1]][[i2]])) {
+          nn4 <- names(rr[[i1]][[i2]][[i3]]$dy)
+          nn4 <- nn4[nn4 %in% mm2]
+          if (length(nn4)>0) for (i4 in nn4) {
+            iglob <- paste(i1,i2,i3,i4,sep="_")
+            dy[[iglob]] <- rr[[i1]][[i2]][[i3]]$dy[[i4]]
+            if (!debug)  htmltools::tags$div(dy[[iglob]], style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+          }
+       }
+    }
+ }    
+
+ if (!debug) {
+   ### htmltools::tags$div(dy, style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+  htmltools::tagList(dy)
+ }
+  
+## Inspired from; https://stackoverflow.com/questions/51007551/displaying-multiple-dygraphs-on-a-grid-in-r-markdown
+
+  
+ }
+
+
+```
+
+
+```{r zoo003_downscaled,echo=FALSE,eval=FALSE,message=FALSE,warning=FALSE,print=TRUE,results="hold",fig.width=100}
+
+
+
+if (is_shiny) {
+renderRbokeh({
+
+ rr <- rzoo_code(
+  data_in=out50,
+  station0=input$station,
+in_selected_global_model=input$gcm,
+varsel=input$varsel
+)  
+  
+message("data")
+isolate(rr <- rrev())
+#head(rr$ttt)
+figure(title=rr$main2,ylab=rr$ylab,data=rr$ttt,width=1000) %>% ly_points(observation,predicted,color = month, glyph = model,hover = list(observation, predicted,model,month,year),legend=FALSE) %>% ly_abline(a=0,b=1)
+})
+}  else if (is_html) {
+  rbok <- list()
+  for (station0 in  unique(out50$station)[1:2]) {
+  for (in_selected_global_model in global_models_u) {
+    for (varsel in vvars[c(1,2)]) { ## 5 is precipitation OMITTED!!
+              
+         rr <- rzoo_code(data_in=out50,station0=station0,in_selected_global_model=in_selected_global_model,varsel=varsel) 
+        rbok[[paste(station0,in_selected_global_model,varsel,sep="_")]] <- figure(title=rr$main2,ylab=rr$ylab,data=rr$ttt,width=1000) %>% ly_points(observation,predicted,color = month, glyph = model,hover = list(observation, predicted,model,month,year),legend=FALSE) %>% ly_abline(a=0,b=1)
+       ## print(rbok)
+       htmltools::tags$div(rbok[[paste(station0,in_selected_global_model,varsel,sep="_")]], style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+      
+      
+      }
+    }
+    
+ }
+
+  ## VEDERE: https://stackoverflow.com/questions/51007551/displaying-multiple-dygraphs-on-a-grid-in-r-markdown
+  htmltools::tags$div(rbok, style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+  htmltools::tagList(rbok) 
+  ### 
+  ###     
+}
+```
+
+
+
+
+### Averaged daily precipitation
+
+Whereas temperature is increasing with a significant trend, the behavior of precipitation due to intermittency and discontuinity is more difficult to analyze. Some recents studies applied to Mediterreanares shows a slighly decrease (e.g. @Mascaro2018) with an impact of water resources, especially snow (e.g. @Senatore2020). AS concern the site WWTRES and WWRLUN monthly time series is presented in the following. 
+
+
+```{r zoo004_prec, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
+debug <- FALSE
+library(dygraphs)
+source("~/activity/2022/fbk/local/waterwise/rmd/functions.R")
+
+###
+gcms <- unique(out50$gcm)
+gcms <- gcms[gcms!="observation"]
+###
+
+rr <- list()
+ for (station0 in  unique(out50$station)[1:2]) {
+  rr[[station0]] <- list()
+  for (in_selected_global_model in gcms) {
+  rr[[station0]][[in_selected_global_model]] <- list() 
+    for (varsel in c("pr")) { ## 5 is precipitation OMITTED!!
+         rr[[station0]][[in_selected_global_model]][[varsel]] <- rzoo_code(dataset=out50,station0=station0,global_climate_model=in_selected_global_model,varsel=varsel) 
+     
+         
+         
+         
+     
+        
+        
+      
+      
+      }
+    }
+    
+ }
+
+mm3 <- unique(temp_gof2$model)
+mm3 <- mm3[mm3!="observation"]
+
+ if (is_html) {
+#### DYGRAPHS 
+dy <- list()
+ for (i1 in names(rr)) {
+    for (i2 in names(rr[[i1]])) {
+       for (i3 in names(rr[[i1]][[i2]])) {
+          nn4 <- names(rr[[i1]][[i2]][[i3]]$dy)
+          nn4 <- nn4[nn4 %in% mm3]
+          if (length(nn4)>0) for (i4 in nn4) {
+            iglob <- paste(i1,i2,i3,i4,sep="_")
+            dy[[iglob]] <- rr[[i1]][[i2]][[i3]]$dy[[i4]]
+            if (!debug)  htmltools::tags$div(dy[[iglob]], style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+          }
+       }
+    }
+ }    
+
+ if (!debug) {
+   ### htmltools::tags$div(dy, style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
+  htmltools::tagList(dy)
+ }
+  
+
+ }
+
+
+```
+
+
+
+
+## References 
+
+
+```{r generateBibliography,echo=FALSE,eval=FALSE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
+
+require(knitcitations)
+cleanbib()
+options(citation_format="pandoc")
+read.bibtex(file = "bibliography.bib")
+
+
+```
+
+
+
