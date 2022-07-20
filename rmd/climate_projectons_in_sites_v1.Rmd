@@ -10,12 +10,6 @@ editor_options:
 bibliography: bibliography.bib  
 ---
 
-output:
-  pdf_document: default
-  html_document: default
-editor_options:
-  chunk_output_type: inline
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -39,7 +33,7 @@ is_pdf = !(is_html)
 ***
 ## Trentino Dataset (RMAWGEN)
 
-Trentino daily climate dataset by **RMAWGEN** R package (https://CRAN.R-project.org/package=RMAWGEN @Cordano2016) contains all information about meteorological stations and instrumental timeseries in 59 sites located in Trentino (Italy) and its neighborood. In particular, it contains daily precipitantion, maximimum and minimum temperature.  Original data are provided by Provincia Autonoma di Trento (https://www.meteotrentino.it/), Fondazione Edmund Mach (https://www.fmach.it), Provincia Autonama di Bolzano/Autome Provinz Bozen (http://www.provincia.bz.it/meteo), ARPA Lombardia (https://www.arpalombardia.it/), ARPA Veneto (https://www.arpa.veneto.it/previsioni/it/html/index.php). Two more stations (WWRLUN and WWTRES) provided by the present project are added.
+Trentino daily climate dataset by **RMAWGEN** R package (https://CRAN.R-project.org/package=RMAWGEN @RMAWGEN, @Cordano2016) contains all information about meteorological stations and instrumental timeseries in 59 sites located in Trentino (Italy) and its neighborood. In particular, it contains daily precipitantion, maximimum and minimum temperature.  Original data are provided by Provincia Autonoma di Trento (https://www.meteotrentino.it/), Fondazione Edmund Mach (https://www.fmach.it), Provincia Autonama di Bolzano/Autome Provinz Bozen (http://www.provincia.bz.it/meteo), ARPA Lombardia (https://www.arpalombardia.it/), ARPA Veneto (https://www.arpa.veneto.it/previsioni/it/html/index.php). Two more stations (WWRLUN and WWTRES) provided by the present project are added.
 
 ```{r trentino,eval=TRUE,echo=FALSE,output=FALSE,results="hide",message=FALSE}
 
@@ -186,7 +180,7 @@ https://climate.copernicus.eu/sites/default/files/2021-03/C3SWebinar1_ErikKjells
 GCMs: 
 
 * "CCCma-CanESM2"   (@Scinocca2016,@Swart2019)(https://climate-modelling.canada.ca/climatemodeldata/cgcm4/CanESM2/index.shtml) 
-* "ICHEC-EC-EARTH"  (@Hazeleger2012)(https://www.ichec.ie/partnerships/state-supported/ec-earth-climate-simulations-irelands-contributions-cmip6 ???)
+* "ICHEC-EC-EARTH"  (@Hazeleger2012)(https://www.ichec.ie/partnerships/state-supported/ec-earth-climate-simulations-irelands-contributions-cmip6 )
 * "MIROC-MIROC5"   (@watanabe2010)(https://journals.ametsoc.org/view/journals/clim/23/23/2010jcli3679.1.xml)
 * "MOHC-HadGEM2-ES"    (@gmd47232011)(https://gmd.copernicus.org/articles/4/723/2011/gmd-4-723-2011.pdf)
 * "MPI-M-MPI-ESM-LR" (@giorgietta2013)(https://mpimet.mpg.de/en/science/models/mpi-esm) ??
@@ -224,8 +218,8 @@ sims <- cordex_netcdf_attributes_multi_sources(ncs)
 
 
 Extracted monthly predicted time series cover the area of grid cells covering in which the station site is contained. Gridded model values from RCMs are subsequently statistical downscaled and then compared with observations, when available, for the historical period (1951-2005) and the RCP8.5 scenario (https://en.wikipedia.org/wiki/Representative_Concentration_Pathway)(2006-2100). 
-Downscaling from the RCM value to the site-scale value has been performed with an ARIMA model. 
-Model are calibarated for the first 10 years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are avaiable from 2001 to 2022 (March). 
+Downscaling from the RCM value to the site-scale value has been performed with an ARIMA *(p,d,q)* model (see **arima**  function in R, base *STATS* package)(@Shumway2017time), in particular the setting (3,1,1) has been selected. The unknowns is the predicted site-scale values whereas the grid-scale prediction from RCM is used as an external regressor.  Before calibrated the ARIMA model, the unknown and the external regressor has been Gauassianized (see *mormalizeGaussian* function in R, *RMAWGEN* package).
+Tha ARIMA model has been calibarated for the first 10 years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are avaiable from 2001 to 2022 (March). 
 Downscaled time series with the best fit and tat can be accepted for further analysis are visualized. Scrolling visulalization are only available in the HTML  of this report. 
 
 ```{r values,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
@@ -529,7 +523,9 @@ figure(title=rr$main2,ylab=rr$ylab,data=rr$ttt,width=1000) %>% ly_points(observa
 
 ### Averaged daily precipitation
 
-Whereas temperature is increasing with a significant trend, the behavior of precipitation due to intermittency and discontuinity is more difficult to analyze. Some recents studies applied to Mediterreanares shows a slighly decrease (e.g. @Mascaro2018) with an impact of water resources, especially snow (e.g. @Senatore2020). AS concern the site WWTRES and WWRLUN monthly time series is presented in the following. 
+Whereas temperature is increasing with a significant trend. Nevertheless,the behavior of precipitation is intermittent and discontinous , than it  is more difficult to analyze and predict. Some recents studies applied to the Mediterranean area shows a slightly decrease (e.g. @Mascaro2018) with an impact of water resources, especially snow (e.g. @Senatore2020). As concern the site WWTRES and WWRLUN monthly time series is presented in the following. Time series were visualized in the HTML version of this report. 
+Actually model simulated monthly averaged daily precipitation differs from the observed values and are not suitable to downscale with a auto-regressive model like ARIMA. Anyway, in terms of monthly average, precipitation value would vary in the future with a low or insignificant trend. Further studies are difficult to find in literature and required more detailed analysis. Moreover, even if monthly avarage precipitation tends to maintain around values similar to the current and historical ones, precipitation distribution (high intensity event, dry spell duration) over time will significantly change in the future as the global air temperature increases.
+
 
 
 ```{r zoo004_prec, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
@@ -593,7 +589,6 @@ dy <- list()
 
 
 ```
-
 
 
 
