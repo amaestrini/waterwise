@@ -185,7 +185,7 @@ rzoo_code <- function(
       main <- outf$main
       outf$dy[[itn]] <- dygraph(zoo2, main = main) %>%
         ##dySeries(sprintf("%s_%s",itn,c("min","pred","max")), label = label,color="black") %>%
-        dySeries(c(itn), label = as.character(mmodel)) %>%
+        dySeries(c(itn), label = as.character(mmodel),color="green") %>%
         dySeries("observation",color="blue") %>% dyRangeSelector()
         if (varsel %in% c("tasmin","tasmax")) {
           label=sprintf("%s (RMSE=%f",it,rmsev)

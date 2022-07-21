@@ -218,9 +218,9 @@ sims <- cordex_netcdf_attributes_multi_sources(ncs)
 
 
 Extracted monthly predicted time series cover the area of grid cells covering in which the station site is contained. Gridded model values from RCMs are subsequently statistical downscaled and then compared with observations, when available, for the historical period (1951-2005) and the RCP8.5 scenario (https://en.wikipedia.org/wiki/Representative_Concentration_Pathway)(2006-2100). 
-Downscaling from the RCM value to the site-scale value has been performed with an ARIMA *(p,d,q)* model (see **arima**  function in R, base *STATS* package)(@Shumway2017time), in particular the setting (3,1,1) has been selected. The unknowns is the predicted site-scale values whereas the grid-scale prediction from RCM is used as an external regressor.  Before calibrated the ARIMA model, the unknown and the external regressor has been Gauassianized (see *mormalizeGaussian* function in R, *RMAWGEN* package).
-Tha ARIMA model has been calibarated for the first 10 years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are avaiable from 2001 to 2022 (March). 
-Downscaled time series with the best fit and tat can be accepted for further analysis are visualized. Scrolling visulalization are only available in the HTML  of this report. 
+Downscaling from the RCM value to the site-scale value has been performed with an ARIMA *(p,d,q)* model (see *arima*  function in R, base ***STATS** package)(@Shumway2017time), in particular the setting (3,1,1) has been selected. The unknowns is the predicted site-scale values whereas the grid-scale prediction from RCM is used as an external regressor.  Before calibrated the ARIMA model, the unknown and the external regressor has been Gauassianized (see *mormalizeGaussian* function in R, **RMAWGEN** package).
+Tha ARIMA model has been calibrated for the first 10 years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are available from 2001 to 2022 (March). 
+Downscaled time series with the best fit and tat can be accepted for further analysis are visualized. Scrolling visualization are only available in the HTML  of this report. 
 
 ```{r values,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
 cc <- system.time({
@@ -395,7 +395,7 @@ for (i1 in names(rr)) {
 
 ```
 
-Godness of fit metrics is based on RMSE (Root Mean Square Error, https://en.wikipedia.org/wiki/Root-mean-square_deviation), MAE (https://en.wikipedia.org/wiki/Mean_absolute_error) and KGE (Kling-Gupta efficiency, see "kge" function on *hydroGOF* R package @hydroGOF): 
+Godness of fit metrics is based on RMSE (Root Mean Square Error, https://en.wikipedia.org/wiki/Root-mean-square_deviation), MAE (https://en.wikipedia.org/wiki/Mean_absolute_error) and KGE (Kling-Gupta efficiency, see *kge* function on **hydroGOF** R package (@hydroGOF)): 
 
 ```{r gof_downscaled, eval=TRUE, echo=FALSE, fig.width=120, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
 
