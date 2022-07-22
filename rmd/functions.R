@@ -16,9 +16,21 @@
 # [6] "station"            "downscaling_models" "rcm_names"          "dy"                 "scplot"
 # [11] "gof"
 # >
-
-
-
+NULL
+#' It generates a list with downscaled time series for the selected station from the values of the related Climate Projection model grid.
+#'
+#' @param dataset dataset containing input time series (time domain - monthly);
+#' @param station id name of the station
+#' @param global_climate_model acronym of the global climate model;
+#' @param iclalibaration record used for dowscaling model (ARIMA) calibration
+#' @param varsel selected vartiable, i.e one of \code{c("pr","tasmax","tasmin")}
+#' @param order,... arguments for ARIMA model. See \code{\link{arima}} and \code{\link{predict.Arima}}
+#' @param add_dygraph,add_scatteplot logical, graphic options.
+#'
+#' @author Emanuele Cordano
+#' @date 2022 07 20
+#'
+#'
 rzoo_code <- function(
   dataset=out50,
   station0="WWRLUN",
