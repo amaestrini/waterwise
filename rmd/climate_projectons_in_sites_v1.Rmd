@@ -218,16 +218,13 @@ sims <- cordex_netcdf_attributes_multi_sources(ncs)
 
 
 Extracted monthly predicted time series cover the area of grid cells covering in which the station site is contained. Gridded model values from RCMs are subsequently statistical downscaled and then compared with observations, when available, for the historical period (1951-2005) and the RCP8.5 scenario (https://en.wikipedia.org/wiki/Representative_Concentration_Pathway)(2006-2100). 
-Downscaling from the RCM value to the site-scale value has been performed with an ARIMA *(p,d,q)* model (see *arima*  function in R, base ***STATS** package)(@Shumway2017time), in particular the setting (3,1,1) has been selected. The unknowns is the predicted site-scale values whereas the grid-scale prediction from RCM is used as an external regressor.  Before calibrated the ARIMA model, the unknown and the external regressor has been Gauassianized (see *mormalizeGaussian* function in R, **RMAWGEN** package).
-Tha ARIMA model has been calibrated for the first 10 years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are available from 2001 to 2022 (March). 
+Downscaling from the RCM value to the site-scale value has been performed with an ARIMA *(p,d,q)* model (see *arima*  function in R, base **stats** package)(@Shumway2017time), in particular the setting (3,1,1) has been selected. The unknowns is the predicted site-scale values whereas the grid-scale prediction from RCM is used as an external regressor.  Before calibrated the ARIMA model, the unknown and the external regressor has been Gauassianized (see *mormalizeGaussian* function in R, **RMAWGEN** package).
+Tha ARIMA model has been calibrated for the first 12  years of the time series of observations at WWRLUN and WWTRES. Observation at WWRLUN and WWTRES are available from 2001 to 2022 (March). 
 Downscaled time series with the best fit and tat can be accepted for further analysis are visualized. Scrolling visualization are only available in the HTML  of this report. 
 
 ```{r values,echo=FALSE,eval=TRUE,message=FALSE,warning=FALSE,print=FALSE,results="hide"}
 cc <- system.time({
-##source("~/local/rpackages/rendena100/cordexr/R/which_ncvar_name.R")
-##source("~/local/rpackages/rendena100/cordexr/R/cordex_grid_cell_values.R")
-##source("~/local/rpackages/rendena100/cordexr/R/codex_grid_vertices.R")
-##source("~/local/rpackages/rendena100/cordexr/R/cordex_grid_cell_value_from_points.R")
+
 ####
 it_station <- c("WWTRES","WWRLUN","T0099","T0083","T0236","SMICH","T0090","T0169")
 ## Global path: 
@@ -328,8 +325,8 @@ out50 <- out50 %>% rbind(trentino_monthly2)
 ```{r zoo004, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, print=TRUE, results="hold"}
 debug <- FALSE
 library(dygraphs)
-source("~/activity/2022/fbk/local/waterwise/rmd/functions.R")
-
+##source("~/activity/2022/fbk/local/waterwise/rmd/functions.R")
+source("functions.R")
 ###
 gcms <- unique(out50$gcm)
 gcms <- gcms[gcms!="observation"]
@@ -343,9 +340,20 @@ rr <- list()
     for (varsel in c("tasmin","tasmax")) { ## 5 is precipitation OMITTED!!
          rr[[station0]][[in_selected_global_model]][[varsel]] <- rzoo_code(dataset=out50,station0=station0,global_climate_model=in_selected_global_model,varsel=varsel) 
      #####
-         filename <- "../outcomes/%s_at_%s_model_%s.rds" %>% sprintf(varsel,station0,in_selected_global_model)   
-         if (write_rds) saveRDS(rr[[station0]][[in_selected_global_model]][[varsel]],file=filename)
-         
+         filename <- "../outcomes/rds/%s_at_%s_model_%s.rds" %>% sprintf(varsel,station0,in_selected_global_model)   
+         csvname <- "../outcomes/csv/%s_at_%s_model_%s_zoo.csv" %>% sprintf(varsel,station0,in_selected_global_model) 
+         if (write_rds) {
+           saveRDS(rr[[station0]][[in_selected_global_model]][[varsel]],file=filename)
+           csvdf <- rr[[station0]][[in_selected_global_model]][[varsel]]$zoov %>% as.data.frame()
+           csvdf$time <- rr[[station0]][[in_selected_global_model]][[varsel]]$zoov %>% index()
+           nn1 <- c("time","observation")
+           nn2 <- names(csvdf)[!(names(csvdf) %in% nn1)]
+           csvdf <- csvdf[,c(nn1,nn2)]
+           write.table(csvdf,file=csvname,row.names=FALSE,col.names=TRUE,sep=",",quote=FALSE)
+
+           
+         }
+       
       }
     }
     
@@ -354,46 +362,46 @@ rr <- list()
 ```
 
 
-```{r scp_downscaled, eval=FALSE, echo=FALSE, fig.width=120, message=FALSE, warning=FALSE, print=TRUE, results="hold",fig.width=100}
+<!-- ```{r scp_downscaled, eval=FALSE, echo=FALSE, fig.width=120, message=FALSE, warning=FALSE, print=TRUE, results="hold",fig.width=100} -->
 
-####
-pagebreak <- function() {
-  if(knitr::is_latex_output())
-    return("\\pagebreak")
-  else
-    return('<div style="page-break-before: always;" />')
-} ### https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way
-
-
-####
-newline <- function() {
-  if(knitr::is_latex_output())
-    return("\\newline")
-  else
-    return('<div style="page-break-before: always;" \n />')
-} ### https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way
+<!-- #### -->
+<!-- pagebreak <- function() { -->
+<!--   if(knitr::is_latex_output()) -->
+<!--     return("\\pagebreak") -->
+<!--   else -->
+<!--     return('<div style="page-break-before: always;" />') -->
+<!-- } ### https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way -->
 
 
-
-
-for (i1 in names(rr)) {
-    for (i2 in names(rr[[i1]])) {
-       for (i3 in names(rr[[i1]][[i2]])) {
-          nn4 <- names(rr[[i1]][[i2]][[i3]]$dy)
-          for (i4 in nn4) {
-            print(rr[[i1]][[i2]][[i3]]$scplot[[i4]])
-            ####print(newline())
-           # iglob <- paste(i1,i2,i3,i4,sep="_")
-           # dy[[iglob]] <- rr[[i1]][[i2]][[i3]]$dy[[i4]]
-            #if (!debug)  htmltools::tags$div(dy[[iglob]], style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;")
-          }
-       }
-    }
- }    
+<!-- #### -->
+<!-- newline <- function() { -->
+<!--   if(knitr::is_latex_output()) -->
+<!--     return("\\newline") -->
+<!--   else -->
+<!--     return('<div style="page-break-before: always;" \n />') -->
+<!-- } ### https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way -->
 
 
 
-```
+
+<!-- for (i1 in names(rr)) { -->
+<!--     for (i2 in names(rr[[i1]])) { -->
+<!--        for (i3 in names(rr[[i1]][[i2]])) { -->
+<!--           nn4 <- names(rr[[i1]][[i2]][[i3]]$dy) -->
+<!--           for (i4 in nn4) { -->
+<!--             print(rr[[i1]][[i2]][[i3]]$scplot[[i4]]) -->
+<!--             ####print(newline()) -->
+<!--            # iglob <- paste(i1,i2,i3,i4,sep="_") -->
+<!--            # dy[[iglob]] <- rr[[i1]][[i2]][[i3]]$dy[[i4]] -->
+<!--             #if (!debug)  htmltools::tags$div(dy[[iglob]], style = "padding:10px; width: 450px; border: solid; background-color:#e9e9e9; display:inline-block;") -->
+<!--           } -->
+<!--        } -->
+<!--     } -->
+<!--  }     -->
+
+
+
+<!-- ``` -->
 
 Godness of fit metrics is based on RMSE (Root Mean Square Error, https://en.wikipedia.org/wiki/Root-mean-square_deviation), MAE (https://en.wikipedia.org/wiki/Mean_absolute_error) and KGE (Kling-Gupta efficiency, see *kge* function on **hydroGOF** R package (@hydroGOF)): 
 
@@ -545,7 +553,19 @@ rr <- list()
   rr[[station0]][[in_selected_global_model]] <- list() 
     for (varsel in c("pr")) { ## 5 is precipitation OMITTED!!
          rr[[station0]][[in_selected_global_model]][[varsel]] <- rzoo_code(dataset=out50,station0=station0,global_climate_model=in_selected_global_model,varsel=varsel) 
-     
+       filename <- "../outcomes/rds/%s_at_%s_model_%s.rds" %>% sprintf(varsel,station0,in_selected_global_model)   
+         csvname <- "../outcomes/csv/%s_at_%s_model_%s_zoo.csv" %>% sprintf(varsel,station0,in_selected_global_model) 
+         if (write_rds) {
+           saveRDS(rr[[station0]][[in_selected_global_model]][[varsel]],file=filename)
+           csvdf <- rr[[station0]][[in_selected_global_model]][[varsel]]$zoov %>% as.data.frame()
+           csvdf$time <- rr[[station0]][[in_selected_global_model]][[varsel]]$zoov %>% index()
+           nn1 <- c("time","observation")
+           nn2 <- names(csvdf)[!(names(csvdf) %in% nn1)]
+           csvdf <- csvdf[,c(nn1,nn2)]
+           write.table(csvdf,file=csvname,row.names=FALSE,col.names=TRUE,sep=",",quote=FALSE)
+              ## INSERT CSV HERE !!! 
+           
+         }
          
          
          

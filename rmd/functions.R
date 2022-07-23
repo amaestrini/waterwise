@@ -35,7 +35,7 @@ rzoo_code <- function(
   dataset=out50,
   station0="WWRLUN",
   global_climate_model="MPI-M-MPI-ESM-LR",
-  ncalibration=10*12,
+  ncalibration=12*12, ## 12 years##10*12, ## 10 years
   icalibration=1:ncalibration,
   varsel="tasmax",
   order=c(3,1,1), ## order input for arima
